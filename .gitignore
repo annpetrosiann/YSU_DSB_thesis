@@ -1,0 +1,17 @@
+# macOS system files
+.DS_Store
+
+# Python
+__pycache__/
+
+# Virtual environments
+.venv/
+env/
+venv/
+
+# IDEs and editors
+.vscode/
+.idea/
+
+# Personal/local config files
+arm_banks.json
