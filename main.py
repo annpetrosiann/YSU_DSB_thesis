@@ -59,7 +59,7 @@ class FaissVectorStore:
         print(f"📂 Metadata loaded from {metadata_path}")
 
 def main():
-    data_dir = "/data"
+    data_dir = "/Users/annpetrosiann/Desktop/YSU_DSB_thesis/data"
 
     print("🔍 Loading and chunking data...")
     chunker = TextChunker(method="spacy", max_words=150,overlap=20)
