@@ -6,6 +6,7 @@ from modules.rag_engine import RAGEngine
 import pickle  # For saving and loading the model
 import faiss  # Import FAISS for vector indexing
 from modules.eval_pipeline import RAGEvaluator
+from modules.fine_tuning_engine import FineTuningEngine
 
 import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -60,6 +61,9 @@ class FaissVectorStore:
 
 def main():
     data_dir = "/Users/annpetrosiann/Desktop/YSU_DSB_thesis/data"
+    TRAIN_PATH = "/Users/annpetrosiann/Desktop/YSU_DSB_thesis/data/arm_banks_Q&A.json"
+    VAL_PATH = "/Users/annpetrosiann/Desktop/YSU_DSB_thesis/data/arm_banks_Q&A.json"
+    OUTPUT_DIR = "fine_tuned_model"
 
     print("🔍 Loading and chunking data...")
     chunker = TextChunker(method="spacy", max_words=150,overlap=20)
@@ -67,9 +71,22 @@ def main():
     chunk_ids, chunk_texts, chunk_titles = zip(*chunks)
 
 
+    print("Fine tuning embedding model.")
+    fine_tuning_engine = FineTuningEngine(train_path=TRAIN_PATH, val_path=VAL_PATH, output_dir=OUTPUT_DIR)
+    fine_tuning_engine.setup()
+    fine_tuning_engine.run()
+
+    print("Retrieving the fine-tuned model.")
+    fine_tuned_model = fine_tuning_engine.get_model()
+    print(f"Model is ready and loaded into '{OUTPUT_DIR}' directory.")
+
     print("📐 Embedding chunks...")
-    embedder = TextEmbedder()
-    embeddings = embedder.encode(chunk_texts).astype("float32")  # FAISS requires float32
+    # Fine-tuned model as the embedder
+    embedder = TextEmbedder(fine_tuned_model=fine_tuned_model, use_huggingface=True)
+
+    # Default Model
+    # embedder = TextEmbedder()
+    embeddings = embedder.encode(chunk_texts)
 
     # Initialize and add data to the FaissVectorStore
     vector_store = FaissVectorStore(dim=embeddings.shape[1])

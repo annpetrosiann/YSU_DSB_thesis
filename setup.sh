@@ -9,9 +9,4 @@ pip install --upgrade pip
 
 # Install Python dependencies
 pip install -r requirements.txt
-
-# Download spaCy English model
-python3 -m spacy download en_core_web_sm
-
-# Download NLTK tokenizer data
-python3 -m nltk.downloader punkt
+pip install --upgrade sentence-transformers llama-index
