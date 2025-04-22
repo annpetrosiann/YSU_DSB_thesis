@@ -1,0 +1,14 @@
+{
+  "train_path": "data/arm_banks_Q&A.json",
+  "val_path": "data/arm_banks_Q&A.json",
+  "output_dir": "fine_tuned_model",
+  "data_dir": "data/",
+  "finetune": true,
+  "hyperparameters": {
+    "num_epochs": 3,
+    "learning_rate": 2e-5,
+    "batch_size": 16,
+    "max_seq_length": 128,
+    "warmup_ratio": 0.1
+  }
+}

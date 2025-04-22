@@ -1,4 +1,4 @@
-import sqlite3  # Add SQLite for local database storage
+import json
 from modules.chunker import TextChunker
 from modules.embedder import TextEmbedder
 from modules.retriever import Retriever
@@ -60,44 +60,65 @@ class FaissVectorStore:
         print(f"📂 Metadata loaded from {metadata_path}")
 
 def main():
-    data_dir = "/Users/annpetrosiann/Desktop/YSU_DSB_thesis/data"
-    TRAIN_PATH = "/Users/annpetrosiann/Desktop/YSU_DSB_thesis/data/arm_banks_Q&A.json"
-    VAL_PATH = "/Users/annpetrosiann/Desktop/YSU_DSB_thesis/data/arm_banks_Q&A.json"
-    OUTPUT_DIR = "fine_tuned_model"
+    with open("config.json", "r") as f:
+        config = json.load(f)
+
+    hp = config["hyperparameters"]
+    TRAIN_PATH = config["train_path"]
+    VAL_PATH = config["val_path"]
+    OUTPUT_DIR = config["output_dir"]
+    data_dir = config["data_dir"]
+    DO_FINETUNE = config.get("finetune", True)
 
     print("🔍 Loading and chunking data...")
     chunker = TextChunker(method="spacy", max_words=150,overlap=20)
     chunks = chunker.load_json_folder(data_dir)
     chunk_ids, chunk_texts, chunk_titles = zip(*chunks)
 
+    # Fine-tune if needed
+    if DO_FINETUNE and not os.path.exists(OUTPUT_DIR):
+        print("📈 Fine-tuning embedding model...")
+        fine_tuning_engine = FineTuningEngine(train_path=TRAIN_PATH, val_path=VAL_PATH, output_dir=OUTPUT_DIR)
+        fine_tuning_engine.setup()
+        fine_tuning_engine.run(**hp)
+        print("✅ Fine-tuning complete.")
+    else:
+        print("⏭ Skipping fine-tuning (already done or disabled in config).")
 
-    print("Fine tuning embedding model.")
+    print("📦 Loading fine-tuned model...")
     fine_tuning_engine = FineTuningEngine(train_path=TRAIN_PATH, val_path=VAL_PATH, output_dir=OUTPUT_DIR)
     fine_tuning_engine.setup()
-    fine_tuning_engine.run()
-
-    print("Retrieving the fine-tuned model.")
     fine_tuned_model = fine_tuning_engine.get_model()
     print(f"Model is ready and loaded into '{OUTPUT_DIR}' directory.")
 
     print("📐 Embedding chunks...")
+
     # Fine-tuned model as the embedder
     embedder = TextEmbedder(fine_tuned_model=fine_tuned_model, use_huggingface=True)
+    embeddings_path = "embeddings.pkl"
+    if os.path.exists(embeddings_path):
+        with open(embeddings_path, "rb") as f:
+            embeddings = pickle.load(f)
+        print("✅ Loaded existing embeddings.")
+    else:
+        embeddings = embedder.encode(chunk_texts)
+        with open(embeddings_path, "wb") as f:
+            pickle.dump(embeddings, f)
+        print("✅ New embeddings saved.")
 
-    # Default Model
+    # Default Model as the embedder
     # embedder = TextEmbedder()
-    embeddings = embedder.encode(chunk_texts)
+    # embeddings = embedder.encode(chunk_texts)
 
-    # Initialize and add data to the FaissVectorStore
+    # Vector store
     vector_store = FaissVectorStore(dim=embeddings.shape[1])
-    vector_store.add(embeddings, chunk_ids, chunk_texts, chunk_titles)
+    if os.path.exists("faiss_index.bin"):
+        vector_store.load()
+    else:
+        vector_store.add(embeddings, chunk_ids, chunk_texts, chunk_titles)
+        vector_store.save()
 
-    # Save the FAISS index and metadata
-    vector_store.save()
-
-    # Optionally, load the FAISS index and metadata (for demonstration purposes)
-    # vector_store.load()
-
+    # Initialize the RAG pipeline
     retriever = Retriever(embedder, vector_store.index, chunk_texts, chunk_ids,chunk_titles)
     rag = RAGEngine(model="llama3", temperature=0.5)
     evaluator = RAGEvaluator()
@@ -115,7 +136,7 @@ def main():
         print(response.strip())
         print("\n" + "-" * 60 + "\n")
 
-        # Evaluation block (properly indented)
+        # Evaluation block
         feedback = input("⭐️ Do you have a reference answer to evaluate? (y/n): ")
         if feedback.lower().strip() == "y":
             reference = input("🔖 Paste reference answer:\n")
@@ -124,7 +145,7 @@ def main():
             print("\n📊 Evaluation Results:")
             for metric, value in scores.items():
                 if isinstance(value, list):
-                    value = value[0]  # Unpack single-item batch
+                    value = value[0]
                 print(f"- {metric}: {value:.4f}")
 
 if __name__ == "__main__":

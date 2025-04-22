@@ -21,3 +21,7 @@ arm_banks.json
 arm_banks_Q&A.json
 checkpoints/
 fine_tuned_model/
+embeddings.pkl
+faiss_metadata.pkl
+faiss_index.bin
+
