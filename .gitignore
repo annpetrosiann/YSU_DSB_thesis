@@ -17,10 +17,9 @@ venv/
 mlruns/
 
 # Personal/local config files
-arm_banks.json
-arm_banks_Q&A.json
 checkpoints/
 fine_tuned_model/
+fine_tuning_data/
 embeddings.pkl
 faiss_metadata.pkl
 faiss_index.bin
