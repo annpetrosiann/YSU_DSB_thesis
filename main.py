@@ -8,6 +8,7 @@ import faiss  # Import FAISS for vector indexing
 from modules.eval_pipeline import RAGEvaluator
 from modules.fine_tuning_engine import FineTuningEngine
 
+# Prevent tokenizer parallelism warning
 import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -60,6 +61,7 @@ class FaissVectorStore:
         print(f"📂 Metadata loaded from {metadata_path}")
 
 def main():
+    # Load config
     with open("config.json", "r") as f:
         config = json.load(f)
 
@@ -70,12 +72,14 @@ def main():
     data_dir = config["data_dir"]
     DO_FINETUNE = config.get("finetune", True)
 
+    # Load and chunk data
     print("🔍 Loading and chunking data...")
     chunker = TextChunker(method="spacy", max_words=150,overlap=20)
     chunks = chunker.load_json_folder(data_dir)
     chunk_ids, chunk_texts, chunk_titles = zip(*chunks)
 
-    # Fine-tune if needed
+    # Fine-tune or load embedding model
+    print("📦 Loading fine-tuned model...")
     if DO_FINETUNE and not os.path.exists(OUTPUT_DIR):
         print("📈 Fine-tuning embedding model...")
         fine_tuning_engine = FineTuningEngine(train_path=TRAIN_PATH, val_path=VAL_PATH, output_dir=OUTPUT_DIR)
@@ -83,25 +87,29 @@ def main():
         fine_tuning_engine.run(**hp)
         print("✅ Fine-tuning complete.")
     else:
-        print("⏭ Skipping fine-tuning (already done or disabled in config).")
-
-    print("📦 Loading fine-tuned model...")
-    fine_tuning_engine = FineTuningEngine(train_path=TRAIN_PATH, val_path=VAL_PATH, output_dir=OUTPUT_DIR)
-    fine_tuning_engine.setup()
-    fine_tuned_model = fine_tuning_engine.get_model()
-    print(f"Model is ready and loaded into '{OUTPUT_DIR}' directory.")
-
+        try:
+            fine_tuned_model = SentenceTransformer(OUTPUT_DIR)
+            print(f"✅ Fine-tuned model loaded from '{OUTPUT_DIR}'.")
+        except Exception as e:
+            print(f"❌ Failed to load fine-tuned model: {e}")
+            print("Fallback: Loading base model instead.")
+            fine_tuned_model = SentenceTransformer("BAAI/bge-small-en")
+    
+    print(f"Model is ready and loaded.")       
+        
+    # Embedding chunks
     print("📐 Embedding chunks...")
 
     # Fine-tuned model as the embedder
     embedder = TextEmbedder(fine_tuned_model=fine_tuned_model, use_huggingface=True)
     embeddings_path = "embeddings.pkl"
+
     if os.path.exists(embeddings_path):
         with open(embeddings_path, "rb") as f:
             embeddings = pickle.load(f)
         print("✅ Loaded existing embeddings.")
     else:
-        embeddings = embedder.encode(chunk_texts)
+        embeddings = embedder.encode(chunk_texts, batch_size=32)
         with open(embeddings_path, "wb") as f:
             pickle.dump(embeddings, f)
         print("✅ New embeddings saved.")
@@ -123,20 +131,23 @@ def main():
     rag = RAGEngine(model="llama3", temperature=0.5)
     evaluator = RAGEvaluator()
 
-    print("🧠 RAG system ready. Ask me anything!\n")
+    print("\n🧠 RAG system ready. Ask me anything!\n")
 
     while True:
         query = input("❓ Your question (or 'exit'): ")
-        if query.lower() == "exit":
+        if query.lower().strip() == "exit":
             break
+            
+        # Retrieve and build prompt
         top_chunks = retriever.retrieve(query, top_k=3)
         prompt = rag.build_prompt(top_chunks, query)
         response = rag.query(prompt)
+
         print("\n🦙 LLaMA (Markdown output):\n")
         print(response.strip())
         print("\n" + "-" * 60 + "\n")
 
-        # Evaluation block
+        # Evaluation 
         feedback = input("⭐️ Do you have a reference answer to evaluate? (y/n): ")
         if feedback.lower().strip() == "y":
             reference = input("🔖 Paste reference answer:\n")
