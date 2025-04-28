@@ -1,15 +1,17 @@
 import json
+import os
+import pickle
+import faiss
+
 from modules.chunker import TextChunker
 from modules.embedder import TextEmbedder
 from modules.retriever import Retriever
 from modules.rag_engine import RAGEngine
-import pickle  # For saving and loading the model
-import faiss  # Import FAISS for vector indexing
 from modules.eval_pipeline import RAGEvaluator
 from modules.fine_tuning_engine import FineTuningEngine
+from sentence_transformers import SentenceTransformer
 
 # Prevent tokenizer parallelism warning
-import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
