@@ -1,6 +1,6 @@
 {
-  "train_path": "data/arm_banks_Q&A.json",
-  "val_path": "data/arm_banks_Q&A.json",
+  "train_path": "fine_tuning_data\\arm_banks_Q&A_with_negatives.json",
+  "val_path":"fine_tuning_data\\arm_banks_Q&A_with_negatives.json",
   "output_dir": "fine_tuned_model",
   "data_dir": "data/",
   "finetune": true,
